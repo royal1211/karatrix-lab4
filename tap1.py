@@ -1,259 +1,727 @@
-# Laboratory Work 4 - Task 2
-# Open Addressing Hash Table
-# Firewall Blacklist System
+# ============================================
 
-ACTIVE = "ACTIVE"
-EMPTY = "EMPTY"
-DELETED = "DELETED"
+# UNIVERSITY LIBRARY CATALOG SYSTEM
 
-LINEAR = "LINEAR"
-QUADRATIC = "QUADRATIC"
+# Separate Chaining + MAD Compression
+
+# ============================================
 
 
-# Hash cədvəlinin xanaları
-class HashEntry:
-    def __init__(self):
-        self.ip = None
-        self.status = EMPTY
+# 1. BOOK CLASS
+
+# ============================================
 
 
-class OpenAddressingHash:
-    def __init__(self, size, mode=QUADRATIC):
-        self.size = self.nextPrime(size)
-        self.currentSize = 0
-        self.mode = mode
-        self.table = [HashEntry() for _ in range(self.size)]
+class Book:
 
-    # Sadə ədəd yoxlanışı
-    def isPrime(self, n):
-        if n < 2:
-            return False
-        for i in range(2, int(n ** 0.5) + 1):
-            if n % i == 0:
-                return False
+  def __init__(self, isbn, title, author, isAvailable=True):
+
+    self.isbn = isbn
+
+    self.title = title
+
+    self.author = author
+
+    self.isAvailable = isAvailable
+
+
+  def __str__(self):
+
+    status = "Available" if self.isAvailable else "Borrowed"
+
+
+    return (
+
+      f"ISBN: {self.isbn} | "
+
+      f"Title: {self.title} | "
+
+      f"Author: {self.author} | "
+
+      f"Status: {status}"
+
+    )
+
+
+
+# 2. POLYNOMIAL HASH FUNCTION
+
+# Horner's Rule, a = 37
+
+# ============================================
+
+
+def polynomial_hash(isbn):
+
+  h = 0
+
+  a = 37
+
+
+  # Remove spaces and hyphens
+
+  isbn = isbn.replace("-", "").replace(" ", "").upper()
+
+
+  for char in isbn:
+
+    h = h * a + ord(char)
+
+
+  return h
+
+
+
+# 3. COMPRESSION METHODS
+
+# ============================================
+
+
+# Division Method
+
+def division_method(hash_value, N):
+
+  return hash_value % N
+
+
+
+# Find next prime number
+
+def is_prime(n):
+
+  if n < 2:
+
+    return False
+
+
+  for i in range(2, int(n ** 0.5) + 1):
+
+    if n % i == 0:
+
+      return False
+
+
+  return True
+
+
+
+def next_prime(n):
+
+  while not is_prime(n):
+
+    n += 1
+
+
+  return n
+
+
+
+# MAD Compression Method
+
+def mad_method(hash_value, N):
+
+  p = next_prime(N + 1)
+
+
+  a = 37 % (p - 1) + 1
+
+  b = 17 % p
+
+
+  return ((a * hash_value + b) % p) % N
+
+
+
+# 4. NODE CLASS
+
+# ============================================
+
+
+class Node:
+
+  def __init__(self, book):
+
+    self.book = book
+
+    self.next = None
+
+
+
+# 5. LINKED LIST CLASS
+
+# ============================================
+
+
+class LinkedList:
+
+
+  def __init__(self):
+
+    self.head = None
+
+
+  # Insert book
+
+  def insert(self, book):
+
+    new_node = Node(book)
+
+
+    if self.head is None:
+
+      self.head = new_node
+
+      return
+
+
+    current = self.head
+
+
+    while current.next is not None:
+
+      current = current.next
+
+
+    current.next = new_node
+
+
+  # Search book
+
+  def search(self, isbn):
+
+    current = self.head
+
+
+    while current is not None:
+
+      if current.book.isbn == isbn:
+
+        return current.book
+
+
+      current = current.next
+
+
+    return None
+
+
+  # Delete book
+
+  def delete(self, isbn):
+
+    current = self.head
+
+    previous = None
+
+
+    while current is not None:
+
+
+      if current.book.isbn == isbn:
+
+
+        if previous is None:
+
+          self.head = current.next
+
+        else:
+
+          previous.next = current.next
+
+
         return True
 
-    # Növbəti sadə ədəd
-    def nextPrime(self, n):
-        while not self.isPrime(n):
-            n += 1
-        return n
 
-    # IP ünvanı üçün polinom həş funksiyası (a = 37)
-    def hashFunction(self, ip):
-        value = 0
-        for char in ip:
-            value = (value * 37 + ord(char)) % self.size
-        return value
+      previous = current
 
-    # Növbəti addım indeksinin O(1) vaxtda hesablanması
-    # Quadratic Probing üçün: H(i) = (H(i-1) + 2i - 1) mod N
-    def nextStep(self, current_index, step):
-        if self.mode == LINEAR:
-            return (current_index + 1) % self.size
-        return (current_index + 2 * step - 1) % self.size
-
-    # Elementin yerini tapmaq
-    def findPos(self, ip):
-        index = self.hashFunction(ip)
-        firstDeleted = -1
-
-        for step in range(1, self.size + 1):
-            entry = self.table[index]
-
-            if entry.status == ACTIVE:
-                if entry.ip == ip:
-                    return index
-            elif entry.status == DELETED:
-                if firstDeleted == -1:
-                    firstDeleted = index
-            elif entry.status == EMPTY:
-                if firstDeleted != -1:
-                    return firstDeleted
-                return index
-
-            index = self.nextStep(index, step)
-
-        return firstDeleted
-
-    # Yük faktoru (Load Factor)
-    def loadFactor(self):
-        return self.currentSize / self.size
-
-    # Element əlavə etmək
-    def insert(self, ip):
-        found, _ = self.contains(ip)
-        if found:
-            return False
-
-        # Yük faktoru 0.5-i keçəcəksə cədvəli böyüdürük
-        if (self.currentSize + 1) / self.size > 0.5:
-            self.rehash()
-
-        position = self.findPos(ip)
-        if position == -1:
-            return False
-
-        self.table[position].ip = ip
-        self.table[position].status = ACTIVE
-        self.currentSize += 1
-        return True
-
-    # IP ünvanını silmək (Lazy Deletion)
-    def remove(self, ip):
-        index = self.hashFunction(ip)
-
-        for step in range(1, self.size + 1):
-            entry = self.table[index]
-
-            if entry.status == EMPTY:
-                return False
-
-            if entry.status == ACTIVE and entry.ip == ip:
-                entry.status = DELETED
-                entry.ip = None
-                self.currentSize -= 1
-                return True
-
-            index = self.nextStep(index, step)
-
-        return False
-
-    # IP ünvanını axtarmaq və probe sayını qaytarmaq
-    def contains(self, ip):
-        index = self.hashFunction(ip)
-        probes = 0
-
-        for step in range(1, self.size + 1):
-            entry = self.table[index]
-            probes += 1
-
-            if entry.status == EMPTY:
-                return False, probes
-
-            if entry.status == ACTIVE and entry.ip == ip:
-                return True, probes
-
-            index = self.nextStep(index, step)
-
-        return False, probes
-
-    # Rehash zamanı element əlavə etmək (yenidən rehash çağırmır)
-    def insertWithoutResize(self, ip):
-        position = self.findPos(ip)
-        if position == -1:
-            return False
-
-        self.table[position].ip = ip
-        self.table[position].status = ACTIVE
-        self.currentSize += 1
-        return True
-
-    # Hash cədvəlini böyütmək və DELETED elementləri təmizləmək
-    def rehash(self):
-        oldTable = self.table
-        oldSize = self.size
-
-        self.size = self.nextPrime(2 * oldSize + 1)
-        self.table = [HashEntry() for _ in range(self.size)]
-        self.currentSize = 0
-
-        for entry in oldTable:
-            if entry.status == ACTIVE:
-                self.insertWithoutResize(entry.ip)
-
-    # Hash cədvəlini konsolda göstərmək
-    def display(self):
-        print("\n========== HASH TABLE ==========")
-        for i, entry in enumerate(self.table):
-            print(f"{i} : {entry.status} {entry.ip if entry.ip else ''}")
-        print("--------------------------------")
-        print("Aktiv elementlər:", self.currentSize)
-        print("Cədvəlin ölçüsü:", self.size)
-        print("Load Factor:", round(self.loadFactor(), 2))
-        print("================================")
+      current = current.next
 
 
-# ==================================
-# TEST BLOKU (Müdafiə və Yoxlama üçün)
-# ==================================
+    return False
+
+
+
+# 6. HASH TABLE CLASS
+
+# ============================================
+
+
+class HashTable:
+
+
+  def __init__(self, capacity=5, method="MAD"):
+
+
+    self.capacity = capacity
+
+    self.min_capacity = capacity
+
+
+    self.size = 0
+
+    self.method = method.upper()
+
+
+    self.table = [
+
+      LinkedList() for _ in range(capacity)
+
+    ]
+
+
+  # Calculate hash index
+
+  def get_index(self, isbn):
+
+
+    hash_value = polynomial_hash(isbn)
+
+
+    if self.method == "DIVISION":
+
+      return division_method(
+
+        hash_value, self.capacity
+
+      )
+
+
+    return mad_method(
+
+      hash_value, self.capacity
+
+    )
+
+
+  # Load Factor
+
+  def load_factor(self):
+
+    return self.size / self.capacity
+
+
+  # Insert book
+
+  def put(self, book):
+
+
+    index = self.get_index(book.isbn)
+
+
+    # Check duplicate ISBN
+
+    existing = self.table[index].search(book.isbn)
+
+
+    if existing is not None:
+
+      print("Book already exists. Updating information.")
+
+      existing.title = book.title
+
+      existing.author = book.author
+
+      existing.isAvailable = book.isAvailable
+
+      return
+
+
+    self.table[index].insert(book)
+
+    self.size += 1
+
+
+    # Dynamic resizing
+
+    if self.load_factor() > 1.0:
+
+      self.resize(self.capacity * 2)
+
+
+    print("Book added successfully!")
+
+
+  # Search book
+
+  def get(self, isbn):
+
+
+    index = self.get_index(isbn)
+
+
+    return self.table[index].search(isbn)
+
+
+  # Delete book
+
+  def remove(self, isbn):
+
+
+    index = self.get_index(isbn)
+
+
+    deleted = self.table[index].delete(isbn)
+
+
+    if deleted:
+
+      self.size -= 1
+
+      print("Book deleted successfully!")
+
+
+      # Shrink if load factor < 0.25
+
+      if (
+
+        self.load_factor() < 0.25
+
+        and self.capacity > self.min_capacity
+
+      ):
+
+        new_capacity = max(
+
+          self.min_capacity,
+
+          self.capacity // 2
+
+        )
+
+
+        self.resize(new_capacity)
+
+
+      return True
+
+
+    print("Book not found!")
+
+    return False
+
+
+  # Resize and Rehash
+
+  def resize(self, new_capacity):
+
+
+    print("\nResizing Hash Table...")
+
+    print(
+
+      f"Old Capacity: {self.capacity}"
+
+    )
+
+
+    old_table = self.table
+
+
+    self.capacity = new_capacity
+
+
+    self.table = [
+
+      LinkedList() for _ in range(new_capacity)
+
+    ]
+
+
+    # Rehash all books
+
+    for linked_list in old_table:
+
+
+      current = linked_list.head
+
+
+      while current is not None:
+
+
+        book = current.book
+
+
+        new_index = self.get_index(book.isbn)
+
+
+        self.table[new_index].insert(book)
+
+
+        current = current.next
+
+
+    print(
+
+      f"New Capacity: {self.capacity}"
+
+    )
+
+    print("Rehash completed!\n")
+
+
+  # Display all books
+
+  def display_all(self):
+
+
+    print("\n========== ALL BOOKS ==========")
+
+
+    if self.size == 0:
+
+      print("Library is empty!")
+
+      return
+
+
+    for linked_list in self.table:
+
+
+      current = linked_list.head
+
+
+      while current is not None:
+
+        print(current.book)
+
+        current = current.next
+
+
+  # Display Hash Table
+
+  def display_table(self):
+
+
+    print("\n========== HASH TABLE ==========")
+
+
+    for i, linked_list in enumerate(self.table):
+
+
+      print(f"Index {i}:", end=" ")
+
+
+      current = linked_list.head
+
+
+      if current is None:
+
+        print("None")
+
+        continue
+
+
+      while current is not None:
+
+
+        print(
+
+          f"[{current.book.isbn}]",
+
+          end=" -> "
+
+        )
+
+
+        current = current.next
+
+
+      print("None")
+
+
+  # Display statistics
+
+  def statistics(self):
+
+
+    print("\n========== STATISTICS ==========")
+
+
+    print("Total Books:", self.size)
+
+    print("Capacity:", self.capacity)
+
+
+    print(
+
+      "Load Factor:",
+
+      round(self.load_factor(), 3)
+
+    )
+
+
+    print("Compression Method:", self.method)
+
+
+
+# 7. MAIN PROGRAM / USER INTERFACE
+
+# ============================================
+
+
+def main():
+
+
+  print("===================================")
+
+  print(" UNIVERSITY LIBRARY CATALOG")
+
+  print("===================================")
+
+
+  print("\nChoose Compression Method:")
+
+  print("1. Division Method")
+
+  print("2. MAD Method")
+
+
+  choice = input("Enter choice: ").strip()
+
+
+  method = "DIVISION" if choice == "1" else "MAD"
+
+
+  library = HashTable(
+
+    capacity=5,
+
+    method=method
+
+  )
+
+
+  while True:
+
+
+    print("\n========== MAIN MENU ==========")
+
+
+    print("1. Add Book")
+
+    print("2. Search Book")
+
+    print("3. Delete Book")
+
+    print("4. Display All Books")
+
+    print("5. Display Hash Table")
+
+    print("6. Show Statistics")
+
+    print("7. Exit")
+
+
+    option = input("\nChoose an option: ").strip()
+
+
+    # ADD BOOK
+
+    if option == "1":
+
+
+      isbn = input("Enter ISBN: ").strip()
+
+      title = input("Enter Title: ").strip()
+
+      author = input("Enter Author: ").strip()
+
+
+      book = Book(
+
+        isbn,
+
+        title,
+
+        author,
+
+        True
+
+      )
+
+
+      library.put(book)
+
+
+    # SEARCH BOOK
+
+    elif option == "2":
+
+
+      isbn = input("Enter ISBN to search: ").strip()
+
+
+      book = library.get(isbn)
+
+
+      if book is not None:
+
+        print("\nBook Found!")
+
+        print(book)
+
+      else:
+
+        print("Book not found!")
+
+
+    # DELETE BOOK
+
+    elif option == "3":
+
+
+      isbn = input("Enter ISBN to delete: ").strip()
+
+
+      library.remove(isbn)
+
+
+    # DISPLAY ALL
+
+    elif option == "4":
+
+
+      library.display_all()
+
+
+    # DISPLAY HASH TABLE
+
+    elif option == "5":
+
+
+      library.display_table()
+
+
+    # STATISTICS
+
+    elif option == "6":
+
+
+      library.statistics()
+
+
+    # EXIT
+
+    elif option == "7":
+
+
+      print("\nThank you for using the Library System!")
+
+      break
+
+
+    else:
+
+      print("Invalid option! Try again.")
+
+
+
+# 8. PROGRAM ENTRY POINT
+
+# ============================================
+
+
 if __name__ == "__main__":
-    # 1. LINEAR PROBING TEST
-    print("\n===== LINEAR PROBING TEST =====")
-    linearTable = OpenAddressingHash(11, LINEAR)
 
-    for ip in ["192.168.1.10", "192.168.1.20", "192.168.1.30"]:
-        if linearTable.insert(ip):
-            print(ip, "əlavə edildi.")
-
-    linearTable.display()
-
-    found, probes = linearTable.contains("192.168.1.20")
-    print("IP tapıldı:", found, "| Probe sayı:", probes)
-
-    if linearTable.remove("192.168.1.20"):
-        print("192.168.1.20 silindi (DELETED).")
-
-    linearTable.display()
-
-    # 2. QUADRATIC PROBING TEST
-    print("\n===== QUADRATIC PROBING TEST =====")
-    quadraticTable = OpenAddressingHash(11, QUADRATIC)
-
-    for ip in ["10.0.0.1", "10.0.0.2", "10.0.0.3"]:
-        if quadraticTable.insert(ip):
-            print(ip, "əlavə edildi.")
-
-    quadraticTable.display()
-
-    found, probes = quadraticTable.contains("10.0.0.2")
-    print("IP tapıldı:", found, "| Probe sayı:", probes)
-
-    if quadraticTable.remove("10.0.0.2"):
-        print("10.0.0.2 silindi (DELETED).")
-
-    quadraticTable.display()
-
-    # 3. DELETED XANANIN YENİDƏN İSTİFADƏSİ
-    print("\n===== DELETED REUSE TEST =====")
-    reuseTable = OpenAddressingHash(11, QUADRATIC)
-
-    groups = {}
-    for i in range(100):
-        ip = f"192.168.1.{i}"
-        idx = reuseTable.hashFunction(ip)
-        if idx in groups:
-            ip1 = groups[idx]
-            ip2 = ip
-            break
-        groups[idx] = ip
-
-    print("Eyni indeksə düşən IP-lər:", ip1, "və", ip2)
-    reuseTable.insert(ip1)
-    reuseTable.insert(ip2)
-    reuseTable.display()
-
-    reuseTable.remove(ip1)
-    print(ip1, "silindi (DELETED).")
-
-    ip3 = None
-    for i in range(100, 200):
-        candidate = f"192.168.1.{i}"
-        if reuseTable.hashFunction(candidate) == reuseTable.hashFunction(ip1):
-            ip3 = candidate
-            break
-
-    reuseTable.insert(ip3)
-    print("Yeni IP (DELETED yerinə yazıldı):", ip3)
-    reuseTable.display()
-
-    # 4. REHASH TEST
-    print("\n===== REHASH TEST =====")
-    testTable = OpenAddressingHash(5, QUADRATIC)
-    print("Başlanğıc ölçü:", testTable.size)
-
-    for ip in ["172.16.0.1", "172.16.0.2", "172.16.0.3"]:
-        testTable.insert(ip)
-        print(ip, "əlavə edildi | Cari ölçü:", testTable.size)
-
-    testTable.display()
+  main()
